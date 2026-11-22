@@ -3,13 +3,19 @@ import {
   ArrowUpRight,
   Download,
   Eraser,
+  FolderOpen,
+  Maximize2,
+  Minimize2,
   MousePointer2,
+  Save,
   MoveUpRight,
   Spline,
   Trash2,
   Undo2,
   UserPlus,
 } from "lucide-react";
+
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,11 +33,14 @@ import {
   emptyBoard,
   formationPlayers,
   isBoardState,
+  isSavedLineupList,
   nextNumber,
+  saveLineup,
   uid,
   type Arrow,
   type ArrowKind,
   type BoardState,
+  type SavedLineup,
   type Team,
 } from "@/lib/board";
 import { FutsalCourt } from "./FutsalCourt";
@@ -45,6 +54,7 @@ type Drag =
   | { kind: "draw-arrow"; id: string };
 
 const STORAGE_KEY = "pizarra-futsal-v1";
+const SAVED_KEY = "pizarra-futsal-guardadas-v1";
 const VIEWBOX = `${-MARGIN} ${-MARGIN} ${COURT_W + MARGIN * 2} ${COURT_H + MARGIN * 2}`;
 
 const TOOLS: { id: Tool; label: string; hint: string; icon: React.ReactNode }[] = [
@@ -95,6 +105,10 @@ export function TacticalBoard() {
   const [past, setPast] = useState<BoardState[]>([]);
   const [formation, setFormation] = useState<Record<Team, string>>({ home: "1-2-1", away: "2-2" });
   const [loaded, setLoaded] = useState(false);
+  const [saved, setSaved] = useState<SavedLineup[]>([]);
+  const [lineupName, setLineupName] = useState("");
+  const [fullscreen, setFullscreen] = useState(false);
+  const stageRef = useRef<HTMLDivElement>(null);
 
   const boardRef = useRef(board);
   boardRef.current = board;
@@ -110,6 +124,11 @@ export function TacticalBoard() {
         if (isBoardState(parsed.board)) setBoard(parsed.board);
         if (parsed.teamNames) setTeamNames(parsed.teamNames);
       }
+      const rawSaved = localStorage.getItem(SAVED_KEY);
+      if (rawSaved) {
+        const list: unknown = JSON.parse(rawSaved);
+        if (isSavedLineupList(list)) setSaved(list);
+      }
     } catch {
       /* ignore corrupt storage */
     }
@@ -120,6 +139,31 @@ export function TacticalBoard() {
     if (!loaded) return;
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ board, teamNames }));
   }, [board, teamNames, loaded]);
+
+  useEffect(() => {
+    if (!loaded) return;
+    localStorage.setItem(SAVED_KEY, JSON.stringify(saved));
+  }, [saved, loaded]);
+
+  // Keep our fullscreen flag in sync when the browser exits fullscreen on its own (Esc).
+  useEffect(() => {
+    const onChange = () => {
+      if (!document.fullscreenElement) setFullscreen(false);
+    };
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
+  }, []);
+
+  const toggleFullscreen = useCallback(async () => {
+    if (fullscreen) {
+      setFullscreen(false);
+      if (document.fullscreenElement) await document.exitFullscreen().catch(() => {});
+      return;
+    }
+    setFullscreen(true);
+    // Real fullscreen where supported; otherwise the stage still fills the window.
+    await stageRef.current?.requestFullscreen?.().catch(() => {});
+  }, [fullscreen]);
 
   const commit = useCallback((next: BoardState) => {
     setPast((p) => [...p.slice(-49), boardRef.current]);
@@ -161,13 +205,14 @@ export function TacticalBoard() {
         e.preventDefault();
         undo();
       } else if (e.key === "Escape") {
+        if (fullscreen) setFullscreen(false);
         setSelection(null);
         setTool("select");
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [selection, removeItem, undo]);
+  }, [selection, removeItem, undo, fullscreen]);
 
   const toSvg = (e: { clientX: number; clientY: number }) => {
     const svg = svgRef.current;
@@ -315,6 +360,29 @@ export function TacticalBoard() {
     setSelection(null);
   };
 
+  const saveCurrent = () => {
+    const next = saveLineup(saved, lineupName, boardRef.current, teamNames);
+    const entry = next[0];
+    setSaved(next);
+    if (entry) {
+      setLineupName(entry.name);
+      toast.success(`«${entry.name}» guardada`);
+    }
+  };
+
+  const loadLineup = (l: SavedLineup) => {
+    commit(l.board);
+    setTeamNames(l.teamNames);
+    setLineupName(l.name);
+    setSelection(null);
+    toast(`«${l.name}» cargada`);
+  };
+
+  const deleteLineup = (l: SavedLineup) => {
+    if (!window.confirm(`¿Borrar la alineación «${l.name}»?`)) return;
+    setSaved((list) => list.filter((x) => x.id !== l.id));
+  };
+
   const exportPng = async () => {
     const svg = svgRef.current;
     if (!svg) return;
@@ -370,6 +438,9 @@ export function TacticalBoard() {
           >
             <Trash2 /> Vaciar
           </Button>
+          <Button variant="secondary" size="sm" onClick={toggleFullscreen}>
+            <Maximize2 /> Pantalla completa
+          </Button>
           <Button size="sm" onClick={exportPng}>
             <Download /> Descargar imagen
           </Button>
@@ -377,10 +448,19 @@ export function TacticalBoard() {
       </header>
 
       <div className="flex flex-col gap-4 lg:flex-row">
+        <div
+          ref={stageRef}
+          className={cn(
+            "flex min-w-0 flex-1 flex-col gap-4 lg:flex-row",
+            fullscreen && "fixed inset-0 z-50 gap-3 bg-background p-3 lg:flex-col",
+          )}
+        >
         {/* Toolbar */}
         <nav
           aria-label="Herramientas"
-          className="flex shrink-0 gap-1 overflow-x-auto rounded-xl border border-border bg-card p-1.5 lg:w-28 lg:flex-col lg:self-start"
+          className={cn("flex shrink-0 gap-1 overflow-x-auto rounded-xl border border-border bg-card p-1.5 lg:w-28 lg:flex-col lg:self-start",
+            fullscreen && "lg:w-auto lg:flex-row lg:self-stretch",
+          )}
         >
           {TOOLS.map((t) => (
             <button
@@ -405,16 +485,44 @@ export function TacticalBoard() {
               {t.label}
             </button>
           ))}
+          {fullscreen && (
+            <button
+              type="button"
+              onClick={undo}
+              disabled={past.length === 0}
+              className="flex min-w-[68px] flex-col items-center gap-1 rounded-lg px-2 py-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-40 [&_svg]:size-5"
+            >
+              <Undo2 />
+              Deshacer
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={toggleFullscreen}
+            className={cn(
+              "flex min-w-[68px] flex-col items-center gap-1 rounded-lg px-2 py-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground [&_svg]:size-5",
+              fullscreen && "ml-auto",
+            )}
+          >
+            {fullscreen ? <Minimize2 /> : <Maximize2 />}
+            {fullscreen ? "Salir" : "Completa"}
+          </button>
         </nav>
 
         {/* Court */}
-        <div className="flex min-w-0 flex-1 flex-col gap-2">
-          <div className="overflow-hidden rounded-2xl shadow-board">
+        <div className={cn("flex min-w-0 flex-1 flex-col gap-2", fullscreen && "min-h-0")}>
+          <div
+            className={cn(
+              "overflow-hidden rounded-2xl shadow-board",
+              fullscreen && "flex min-h-0 flex-1 items-center justify-center rounded-none shadow-none",
+            )}
+          >
             <svg
               ref={svgRef}
               viewBox={VIEWBOX}
               className={cn(
                 "block h-auto w-full touch-none select-none",
+                fullscreen && "h-full max-h-full",
                 tool === "select" ? "cursor-default" : tool === "erase" ? "cursor-not-allowed" : "cursor-crosshair",
               )}
               onPointerDown={onBoardPointerDown}
@@ -574,6 +682,7 @@ export function TacticalBoard() {
             deshacer.
           </p>
         </div>
+        </div>
 
         {/* Side panel */}
         <aside className="flex w-full shrink-0 flex-col gap-4 lg:w-80">
@@ -682,6 +791,81 @@ export function TacticalBoard() {
               </Button>
             </Panel>
           ) : null}
+
+          <Panel title="Mis alineaciones">
+            <form
+              className="flex gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                saveCurrent();
+              }}
+            >
+              <Input
+                aria-label="Nombre de la alineación"
+                value={lineupName}
+                onChange={(e) => setLineupName(e.target.value)}
+                placeholder={`Alineación ${saved.length + 1}`}
+                maxLength={40}
+                className="h-8"
+              />
+              <Button type="submit" size="sm">
+                <Save /> Guardar
+              </Button>
+            </form>
+            {saved.length === 0 ? (
+              <p className="text-xs text-muted-foreground">
+                Ponle un nombre y guárdala. Si usas un nombre que ya existe, se actualiza.
+              </p>
+            ) : (
+              <ul className="flex max-h-60 flex-col gap-0.5 overflow-y-auto">
+                {saved.map((l) => (
+                  <li
+                    key={l.id}
+                    className={cn(
+                      "group flex items-center gap-1 rounded-md pl-2 hover:bg-accent",
+                      l.name === lineupName.trim() && "bg-accent",
+                    )}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => loadLineup(l)}
+                      className="flex min-w-0 flex-1 flex-col py-1.5 text-left"
+                      title="Cargar en la pizarra"
+                    >
+                      <span className="truncate text-sm font-medium">{l.name}</span>
+                      <span className="text-[11px] text-muted-foreground">
+                        {l.board.players.length} jugadores · {l.board.arrows.length} flechas ·{" "}
+                        {new Date(l.savedAt).toLocaleDateString("es-ES", {
+                          day: "numeric",
+                          month: "short",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                    </button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="size-8"
+                      aria-label={`Cargar ${l.name}`}
+                      onClick={() => loadLineup(l)}
+                    >
+                      <FolderOpen />
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="size-8 text-muted-foreground hover:text-destructive"
+                      aria-label={`Borrar ${l.name}`}
+                      onClick={() => deleteLineup(l)}
+                    >
+                      <Trash2 />
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Panel>
 
           {(["home", "away"] as const).map((team) => {
             const players = board.players

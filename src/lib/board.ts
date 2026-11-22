@@ -164,3 +164,52 @@ export function isBoardState(v: unknown): v is BoardState {
   const o = v as Record<string, unknown>;
   return Array.isArray(o["players"]) && Array.isArray(o["balls"]) && Array.isArray(o["arrows"]);
 }
+
+export interface TeamNames {
+  home: string;
+  away: string;
+}
+
+export interface SavedLineup {
+  id: string;
+  name: string;
+  savedAt: number;
+  board: BoardState;
+  teamNames: TeamNames;
+}
+
+/**
+ * Save the current board under a name. Saving with a name that already exists
+ * (case-insensitive) overwrites that lineup; otherwise a new one is added first.
+ */
+export function saveLineup(
+  list: SavedLineup[],
+  name: string,
+  board: BoardState,
+  teamNames: TeamNames,
+  now: number = Date.now(),
+): SavedLineup[] {
+  const clean = name.trim() || `Alineación ${list.length + 1}`;
+  const existing = list.find((l) => l.name.toLowerCase() === clean.toLowerCase());
+  const entry: SavedLineup = {
+    id: existing?.id ?? uid(),
+    name: clean,
+    savedAt: now,
+    board,
+    teamNames,
+  };
+  return [entry, ...list.filter((l) => l.id !== entry.id)];
+}
+
+export function isSavedLineupList(v: unknown): v is SavedLineup[] {
+  return (
+    Array.isArray(v) &&
+    v.every(
+      (l) =>
+        l &&
+        typeof l === "object" &&
+        typeof (l as SavedLineup).name === "string" &&
+        isBoardState((l as SavedLineup).board),
+    )
+  );
+}

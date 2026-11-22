@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FORMATIONS, applyFormation, emptyBoard, nextNumber, type Player } from "./board";
+import { FORMATIONS, applyFormation, emptyBoard, nextNumber, saveLineup, type Player } from "./board";
 
 const p = (team: "home" | "away", number: number): Player => ({
   id: `${team}-${number}`,
@@ -37,5 +37,28 @@ describe("board rules", () => {
     if (!f) throw new Error("missing formation");
     const state = applyFormation(emptyBoard, f, "away");
     expect(state.players.every((x) => x.x >= 200)).toBe(true);
+  });
+});
+
+describe("saved lineups", () => {
+  const names = { home: "Local", away: "Rival" };
+
+  it("saving under a new name adds a lineup", () => {
+    const one = saveLineup([], "Presión alta", emptyBoard, names, 1);
+    const two = saveLineup(one, "Salida de balón", emptyBoard, names, 2);
+    expect(two.map((l) => l.name)).toEqual(["Salida de balón", "Presión alta"]);
+  });
+
+  it("saving under an existing name overwrites it instead of duplicating", () => {
+    const one = saveLineup([], "Presión alta", emptyBoard, names, 1);
+    const withPlayer = { ...emptyBoard, players: [p("home", 9)] };
+    const two = saveLineup(one, "presión alta", withPlayer, names, 2);
+    expect(two).toHaveLength(1);
+    expect(two[0]?.board.players).toHaveLength(1);
+  });
+
+  it("an empty name gets a numbered default", () => {
+    const one = saveLineup([], "  ", emptyBoard, names, 1);
+    expect(one[0]?.name).toBe("Alineación 1");
   });
 });
