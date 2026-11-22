@@ -28,3 +28,8 @@ use the editor.
   own key and store it in Secrets.
 - **Secrets.** Lovable manages them. Do not put secret values in the repo.
 <!-- LOVABLE:END -->
+
+## Project rules
+
+- The tactical board is a single SVG in court units (1 unit = 10 cm, 400x200 court); pure rules live in `src/lib/board.ts` with tests, UI in `src/components/board/`. Why: keeps geometry resolution-independent and rules testable.
+- Board state persists in the browser's localStorage (no backend). Why: single-user tool with no accounts requested.

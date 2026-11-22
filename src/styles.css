@@ -70,77 +70,85 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  --color-court: var(--court);
+  --color-court-outer: var(--court-outer);
+  --color-court-area: var(--court-area);
+  --color-court-line: var(--court-line);
+  --color-goal: var(--goal);
+  --color-team-home: var(--team-home);
+  --color-team-home-foreground: var(--team-home-foreground);
+  --color-team-away: var(--team-away);
+  --color-team-away-foreground: var(--team-away-foreground);
+  --color-goalkeeper: var(--goalkeeper);
+  --color-arrow: var(--arrow);
+  --color-ball: var(--ball);
+  --color-ball-foreground: var(--ball-foreground);
+  --color-label-halo: var(--label-halo);
+  --font-display: "Bebas Neue", "Barlow Condensed", sans-serif;
+  --font-sans: "Barlow", system-ui, sans-serif;
+  --shadow-board: var(--shadow-board);
 }
 
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.129 0.042 264.695);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.129 0.042 264.695);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.129 0.042 264.695);
-  --primary: oklch(0.208 0.042 265.755);
-  --primary-foreground: oklch(0.984 0.003 247.858);
-  --secondary: oklch(0.968 0.007 247.896);
-  --secondary-foreground: oklch(0.208 0.042 265.755);
-  --muted: oklch(0.968 0.007 247.896);
-  --muted-foreground: oklch(0.554 0.046 257.417);
-  --accent: oklch(0.968 0.007 247.896);
-  --accent-foreground: oklch(0.208 0.042 265.755);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.984 0.003 247.858);
-  --border: oklch(0.929 0.013 255.508);
-  --input: oklch(0.929 0.013 255.508);
-  --ring: oklch(0.704 0.04 256.788);
+  --radius: 0.75rem;
+  /* Chalkboard shell */
+  --background: oklch(0.19 0.014 165);
+  --foreground: oklch(0.95 0.012 100);
+  --card: oklch(0.23 0.016 165);
+  --card-foreground: oklch(0.95 0.012 100);
+  --popover: oklch(0.23 0.016 165);
+  --popover-foreground: oklch(0.95 0.012 100);
+  --primary: oklch(0.88 0.17 108);
+  --primary-foreground: oklch(0.2 0.02 165);
+  --secondary: oklch(0.28 0.02 165);
+  --secondary-foreground: oklch(0.95 0.012 100);
+  --muted: oklch(0.26 0.016 165);
+  --muted-foreground: oklch(0.72 0.025 140);
+  --accent: oklch(0.31 0.024 165);
+  --accent-foreground: oklch(0.97 0.01 100);
+  --destructive: oklch(0.64 0.2 25);
+  --destructive-foreground: oklch(0.98 0 0);
+  --border: oklch(0.34 0.02 165);
+  --input: oklch(0.36 0.02 165);
+  --ring: oklch(0.88 0.17 108);
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
   --chart-4: oklch(0.828 0.189 84.429);
   --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.984 0.003 247.858);
-  --sidebar-foreground: oklch(0.129 0.042 264.695);
-  --sidebar-primary: oklch(0.208 0.042 265.755);
-  --sidebar-primary-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-accent: oklch(0.968 0.007 247.896);
-  --sidebar-accent-foreground: oklch(0.208 0.042 265.755);
-  --sidebar-border: oklch(0.929 0.013 255.508);
-  --sidebar-ring: oklch(0.704 0.04 256.788);
-}
+  --sidebar: oklch(0.23 0.016 165);
+  --sidebar-foreground: oklch(0.95 0.012 100);
+  --sidebar-primary: oklch(0.88 0.17 108);
+  --sidebar-primary-foreground: oklch(0.2 0.02 165);
+  --sidebar-accent: oklch(0.31 0.024 165);
+  --sidebar-accent-foreground: oklch(0.97 0.01 100);
+  --sidebar-border: oklch(0.34 0.02 165);
+  --sidebar-ring: oklch(0.88 0.17 108);
 
-.dark {
-  --background: oklch(0.129 0.042 264.695);
-  --foreground: oklch(0.984 0.003 247.858);
-  --card: oklch(0.208 0.042 265.755);
-  --card-foreground: oklch(0.984 0.003 247.858);
-  --popover: oklch(0.208 0.042 265.755);
-  --popover-foreground: oklch(0.984 0.003 247.858);
-  --primary: oklch(0.929 0.013 255.508);
-  --primary-foreground: oklch(0.208 0.042 265.755);
-  --secondary: oklch(0.279 0.041 260.031);
-  --secondary-foreground: oklch(0.984 0.003 247.858);
-  --muted: oklch(0.279 0.041 260.031);
-  --muted-foreground: oklch(0.704 0.04 256.788);
-  --accent: oklch(0.279 0.041 260.031);
-  --accent-foreground: oklch(0.984 0.003 247.858);
-  --destructive: oklch(0.704 0.191 22.216);
-  --destructive-foreground: oklch(0.984 0.003 247.858);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.551 0.027 264.364);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.208 0.042 265.755);
-  --sidebar-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-accent: oklch(0.279 0.041 260.031);
-  --sidebar-accent-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.551 0.027 264.364);
+  /* Futsal court */
+  --court: oklch(0.5 0.11 243);
+  --court-outer: oklch(0.36 0.075 245);
+  --court-area: oklch(0.62 0.15 48);
+  --court-line: oklch(0.97 0.006 100);
+  --goal: oklch(0.97 0.006 100 / 35%);
+
+  /* Teams & pieces */
+  --team-home: oklch(0.62 0.21 27);
+  --team-home-foreground: oklch(0.99 0 0);
+  --team-away: oklch(0.87 0.16 92);
+  --team-away-foreground: oklch(0.22 0.03 80);
+  --goalkeeper: oklch(0.78 0.18 150);
+  --arrow: oklch(0.98 0.004 100);
+  --ball: oklch(0.99 0 0);
+  --ball-foreground: oklch(0.18 0.01 165);
+  --label-halo: oklch(0.16 0.02 245 / 85%);
+
+  --shadow-board: 0 30px 80px -30px oklch(0 0 0 / 70%), 0 0 0 1px oklch(1 0 0 / 6%);
+  --gradient-shell: radial-gradient(
+    ellipse at top,
+    oklch(0.25 0.025 165) 0%,
+    oklch(0.19 0.014 165) 55%
+  );
 }
 
 @layer base {
@@ -150,6 +158,18 @@
 
   body {
     background-color: var(--color-background);
+    background-image: var(--gradient-shell);
+    background-attachment: fixed;
     color: var(--color-foreground);
+    font-family: var(--font-sans);
+  }
+}
+
+@layer components {
+  .player-label {
+    paint-order: stroke;
+    stroke: var(--label-halo);
+    stroke-width: 3px;
+    stroke-linejoin: round;
   }
 }
