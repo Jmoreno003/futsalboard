@@ -3,7 +3,7 @@ import {
   ArrowUpRight,
   Download,
   Eraser,
-  FolderOpen,
+  Play,
   Maximize2,
   Minimize2,
   MousePointer2,
@@ -278,13 +278,20 @@ export function TacticalBoard() {
     setSelection({ type: "ball", id });
   };
   const ctxAddArrow = (kind: ArrowKind) => {
-    const { x, y } = ctxRef.current;
     const b = boardRef.current;
+    const t = ctxRef.current.target;
+    const from = t?.type === "player" ? b.players.find((p) => p.id === t.id) : undefined;
+    const { x, y } = from ?? ctxRef.current;
     const id = uid();
     const dir = x > COURT_W / 2 ? -1 : 1;
     const end = clampToBoard(x + dir * 60, y);
     commit({ ...b, arrows: [...b.arrows, { id, kind, x1: x, y1: y, x2: end.x, y2: end.y }] });
     setSelection({ type: "arrow", id });
+  };
+
+  const ctxSetArrowKind = (id: string, kind: ArrowKind) => {
+    const b = boardRef.current;
+    commit({ ...b, arrows: b.arrows.map((a) => (a.id === id ? { ...a, kind } : a)) });
   };
 
   const isArrowTool = tool === "pass" || tool === "run" || tool === "dribble";
@@ -413,6 +420,13 @@ export function TacticalBoard() {
     const f = FORMATIONS.find((x) => x.id === formation[team]);
     if (!f) return;
     commit(applyFormation(boardRef.current, f, team));
+    setSelection(null);
+  };
+
+  const clearTeam = (team: Team) => {
+    const b = boardRef.current;
+    if (!b.players.some((p) => p.team === team)) return;
+    commit({ ...b, players: b.players.filter((p) => p.team !== team) });
     setSelection(null);
   };
 
@@ -552,6 +566,7 @@ export function TacticalBoard() {
               Deshacer
             </button>
           )}
+          {fullscreen && (
           <button
             type="button"
             onClick={toggleFullscreen}
@@ -560,9 +575,10 @@ export function TacticalBoard() {
               fullscreen && "ml-auto",
             )}
           >
-            {fullscreen ? <Minimize2 /> : <Maximize2 />}
-            {fullscreen ? "Salir" : "Completa"}
+            <Minimize2 />
+            Salir
           </button>
+          )}
         </nav>
 
         {/* Court */}
@@ -742,25 +758,48 @@ export function TacticalBoard() {
             </svg>
             </ContextMenuTrigger>
             <ContextMenuContent className="w-52">
-              <ContextMenuLabel>Añadir aquí</ContextMenuLabel>
-              <ContextMenuItem onSelect={() => ctxAddPlayer("home")}>Jugador {teamNames.home}</ContextMenuItem>
-              <ContextMenuItem onSelect={() => ctxAddPlayer("away")}>Jugador {teamNames.away}</ContextMenuItem>
-              <ContextMenuItem onSelect={ctxAddBall}>Balón</ContextMenuItem>
-              <ContextMenuSub>
-                <ContextMenuSubTrigger>Flecha</ContextMenuSubTrigger>
-                <ContextMenuSubContent>
+              {ctxTarget?.type === "arrow" ? (
+                <>
+                  <ContextMenuLabel>Tipo de flecha</ContextMenuLabel>
+                  {(Object.keys(ARROW_LABEL) as ArrowKind[]).map((k) => (
+                    <ContextMenuItem key={k} onSelect={() => ctxSetArrowKind(ctxTarget.id, k)}>
+                      {ARROW_LABEL[k]}
+                    </ContextMenuItem>
+                  ))}
+                </>
+              ) : ctxTarget?.type === "player" ? (
+                <>
+                  <ContextMenuLabel>Añadir flecha</ContextMenuLabel>
                   {(Object.keys(ARROW_LABEL) as ArrowKind[]).map((k) => (
                     <ContextMenuItem key={k} onSelect={() => ctxAddArrow(k)}>
                       {ARROW_LABEL[k]}
                     </ContextMenuItem>
                   ))}
-                </ContextMenuSubContent>
-              </ContextMenuSub>
+                </>
+              ) : ctxTarget?.type === "ball" ? null : (
+                <>
+                  <ContextMenuLabel>Añadir aquí</ContextMenuLabel>
+                  <ContextMenuItem onSelect={() => ctxAddPlayer("home")}>Jugador {teamNames.home}</ContextMenuItem>
+                  <ContextMenuItem onSelect={() => ctxAddPlayer("away")}>Jugador {teamNames.away}</ContextMenuItem>
+                  <ContextMenuItem onSelect={ctxAddBall}>Balón</ContextMenuItem>
+                  <ContextMenuSub>
+                    <ContextMenuSubTrigger>Flecha</ContextMenuSubTrigger>
+                    <ContextMenuSubContent>
+                      {(Object.keys(ARROW_LABEL) as ArrowKind[]).map((k) => (
+                        <ContextMenuItem key={k} onSelect={() => ctxAddArrow(k)}>
+                          {ARROW_LABEL[k]}
+                        </ContextMenuItem>
+                      ))}
+                    </ContextMenuSubContent>
+                  </ContextMenuSub>
+                </>
+              )}
               {ctxTarget && (
                 <>
-                  <ContextMenuSeparator />
+                  {ctxTarget.type !== "ball" && <ContextMenuSeparator />}
                   <ContextMenuItem className="text-destructive" onSelect={() => removeItem(ctxTarget)}>
-                    Borrar {ctxTarget.type === "player" ? "jugador" : ctxTarget.type === "ball" ? "balón" : "flecha"}
+                    <Trash2 />
+                    Eliminar {ctxTarget.type === "player" ? "jugador" : ctxTarget.type === "ball" ? "balón" : "flecha"}
                   </ContextMenuItem>
                 </>
               )}
@@ -935,13 +974,15 @@ export function TacticalBoard() {
                       </span>
                     </button>
                     <Button
-                      size="icon"
-                      variant="ghost"
-                      className="size-8"
-                      aria-label={`Cargar ${l.name}`}
+                      size="sm"
+                      variant="secondary"
+                      className="h-8 px-2.5"
+                      aria-label={`Usar ${l.name} en el campo`}
+                      title="Poner esta alineación en el campo"
                       onClick={() => loadLineup(l)}
                     >
-                      <FolderOpen />
+                      <Play />
+                      Usar
                     </Button>
                     <Button
                       size="icon"
@@ -993,6 +1034,16 @@ export function TacticalBoard() {
                   </select>
                   <Button size="sm" variant="secondary" onClick={() => placeFormation(team)}>
                     Colocar
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-muted-foreground hover:text-destructive"
+                    aria-label={`Eliminar equipo ${teamNames[team]}`}
+                    onClick={() => clearTeam(team)}
+                  >
+                    <Trash2 />
+                    Eliminar
                   </Button>
                 </div>
                 {players.length === 0 ? (
