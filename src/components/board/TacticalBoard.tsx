@@ -21,6 +21,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuLabel,
+  ContextMenuSeparator,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 import { cn } from "@/lib/utils";
 import {
   COURT_H,
@@ -89,8 +100,8 @@ function initialBoard(): BoardState {
     players: [
       ...(rombo ? formationPlayers(rombo, "home") : []),
       ...(cuadrado ? formationPlayers(cuadrado, "away") : []),
-    ],
-    balls: [{ id: uid(), x: COURT_W / 2, y: COURT_H / 2 }],
+    ].map((p) => ({ ...p, id: `init-${p.team}-${p.number}` })), // stable ids so SSR and browser match
+    balls: [{ id: "init-ball", x: COURT_W / 2, y: COURT_H / 2 }],
     arrows: [],
   };
 }
@@ -229,6 +240,51 @@ export function TacticalBoard() {
     svgRef.current?.setPointerCapture(e.pointerId);
     snapshotRef.current = boardRef.current;
     dragRef.current = drag;
+  };
+
+  // Right-click menu: remembers where and on what the user clicked.
+  const ctxRef = useRef<{ x: number; y: number; target: NonNullable<Selection> | null }>({
+    x: COURT_W / 2,
+    y: COURT_H / 2,
+    target: null,
+  });
+  const [ctxTarget, setCtxTarget] = useState<NonNullable<Selection> | null>(null);
+  const onBoardContextMenu = (e: React.MouseEvent<SVGSVGElement>) => {
+    const raw = toSvg(e);
+    const { x, y } = clampToBoard(raw.x, raw.y);
+    const el = (e.target as Element).closest("[data-item-type]");
+    const target = el
+      ? ({ type: el.getAttribute("data-item-type"), id: el.getAttribute("data-item-id") } as NonNullable<Selection>)
+      : null;
+    ctxRef.current = { x, y, target };
+    setCtxTarget(target);
+    if (target) setSelection(target);
+  };
+  const ctxAddPlayer = (team: Team) => {
+    const { x, y } = ctxRef.current;
+    const b = boardRef.current;
+    const id = uid();
+    commit({
+      ...b,
+      players: [...b.players, { id, team, x, y, number: nextNumber(b.players, team), name: "", goalkeeper: false }],
+    });
+    setSelection({ type: "player", id });
+  };
+  const ctxAddBall = () => {
+    const { x, y } = ctxRef.current;
+    const b = boardRef.current;
+    const id = uid();
+    commit({ ...b, balls: [...b.balls, { id, x, y }] });
+    setSelection({ type: "ball", id });
+  };
+  const ctxAddArrow = (kind: ArrowKind) => {
+    const { x, y } = ctxRef.current;
+    const b = boardRef.current;
+    const id = uid();
+    const dir = x > COURT_W / 2 ? -1 : 1;
+    const end = clampToBoard(x + dir * 60, y);
+    commit({ ...b, arrows: [...b.arrows, { id, kind, x1: x, y1: y, x2: end.x, y2: end.y }] });
+    setSelection({ type: "arrow", id });
   };
 
   const isArrowTool = tool === "pass" || tool === "run" || tool === "dribble";
@@ -517,8 +573,11 @@ export function TacticalBoard() {
               fullscreen && "flex min-h-0 flex-1 items-center justify-center rounded-none shadow-none",
             )}
           >
+            <ContextMenu>
+            <ContextMenuTrigger asChild>
             <svg
               ref={svgRef}
+              onContextMenu={onBoardContextMenu}
               viewBox={VIEWBOX}
               className={cn(
                 "block h-auto w-full touch-none select-none",
@@ -579,6 +638,8 @@ export function TacticalBoard() {
                       className="fill-none stroke-transparent"
                       strokeWidth={12}
                       style={{ cursor: tool === "select" ? "move" : undefined }}
+                      data-item-type="arrow"
+                      data-item-id={a.id}
                       onPointerDown={(e) => onItemPointerDown(e, "arrow", a.id)}
                     />
                   </g>
@@ -594,6 +655,8 @@ export function TacticalBoard() {
                     key={p.id}
                     transform={`translate(${p.x} ${p.y})`}
                     style={{ cursor: tool === "select" ? "grab" : undefined }}
+                    data-item-type="player"
+                    data-item-id={p.id}
                     onPointerDown={(e) => onItemPointerDown(e, "player", p.id)}
                     onDoubleClick={() => {
                       setSelection({ type: "player", id: p.id });
@@ -646,6 +709,8 @@ export function TacticalBoard() {
                     key={b.id}
                     transform={`translate(${b.x} ${b.y})`}
                     style={{ cursor: tool === "select" ? "grab" : undefined }}
+                    data-item-type="ball"
+                    data-item-id={b.id}
                     onPointerDown={(e) => onItemPointerDown(e, "ball", b.id)}
                   >
                     {sel && (
@@ -675,6 +740,32 @@ export function TacticalBoard() {
                 </g>
               )}
             </svg>
+            </ContextMenuTrigger>
+            <ContextMenuContent className="w-52">
+              <ContextMenuLabel>Añadir aquí</ContextMenuLabel>
+              <ContextMenuItem onSelect={() => ctxAddPlayer("home")}>Jugador {teamNames.home}</ContextMenuItem>
+              <ContextMenuItem onSelect={() => ctxAddPlayer("away")}>Jugador {teamNames.away}</ContextMenuItem>
+              <ContextMenuItem onSelect={ctxAddBall}>Balón</ContextMenuItem>
+              <ContextMenuSub>
+                <ContextMenuSubTrigger>Flecha</ContextMenuSubTrigger>
+                <ContextMenuSubContent>
+                  {(Object.keys(ARROW_LABEL) as ArrowKind[]).map((k) => (
+                    <ContextMenuItem key={k} onSelect={() => ctxAddArrow(k)}>
+                      {ARROW_LABEL[k]}
+                    </ContextMenuItem>
+                  ))}
+                </ContextMenuSubContent>
+              </ContextMenuSub>
+              {ctxTarget && (
+                <>
+                  <ContextMenuSeparator />
+                  <ContextMenuItem className="text-destructive" onSelect={() => removeItem(ctxTarget)}>
+                    Borrar {ctxTarget.type === "player" ? "jugador" : ctxTarget.type === "ball" ? "balón" : "flecha"}
+                  </ContextMenuItem>
+                </>
+              )}
+            </ContextMenuContent>
+            </ContextMenu>
           </div>
           <p className="text-xs text-muted-foreground">
             <span className="font-semibold text-foreground">{TOOLS.find((t) => t.id === tool)?.label}:</span>{" "}
