@@ -517,20 +517,18 @@ export function TacticalBoard() {
         </div>
       </header>
 
-      <div className="flex flex-col gap-4 lg:flex-row">
+      <div className="flex flex-col gap-4">
         <div
           ref={stageRef}
           className={cn(
-            "flex min-w-0 flex-1 flex-col gap-4 lg:flex-row",
-            fullscreen && "fixed inset-0 z-50 gap-3 bg-background p-3 lg:flex-col",
+            "flex min-w-0 flex-1 flex-col gap-4",
+            fullscreen && "fixed inset-0 z-50 gap-3 bg-background p-3",
           )}
         >
         {/* Toolbar */}
         <nav
           aria-label="Herramientas"
-          className={cn("flex shrink-0 gap-1 overflow-x-auto rounded-xl border border-border bg-card p-1.5 lg:w-28 lg:flex-col lg:self-start",
-            fullscreen && "lg:w-auto lg:flex-row lg:self-stretch",
-          )}
+          className="flex shrink-0 flex-wrap gap-1 rounded-xl border border-border bg-card p-1.5"
         >
           {TOOLS.map((t) => (
             <button
@@ -815,7 +813,7 @@ export function TacticalBoard() {
         </div>
 
         {/* Side panel */}
-        <aside className="flex w-full shrink-0 flex-col gap-4 lg:w-80">
+        <aside className="grid w-full shrink-0 items-start gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {selectedPlayer ? (
             <Panel title="Jugador">
               <div className="grid grid-cols-[1fr_80px] gap-3">
