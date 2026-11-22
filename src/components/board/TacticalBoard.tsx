@@ -273,7 +273,7 @@ export function TacticalBoard() {
             : a,
         ),
       });
-    } else {
+    } else if (drag.kind === "draw-arrow" || drag.kind === "arrow-end") {
       const { x, y } = clampToBoard(raw.x, raw.y);
       const end = drag.kind === "draw-arrow" ? 2 : drag.end;
       setBoard({
