@@ -1,26 +1,26 @@
+```markdown
 # Futsalboard
 
-crea una pagina con la que pueda hacer alinaciones para futsal, que salga un campo de futsal y pueda poner a los jugadores con nombre dorsales y que pueda poner balones, flechas como una pizarrra tactica
+Aplicación web interactiva de pizarra táctica diseñada para entrenadores y equipos de fútbol sala. Permite crear alineaciones sobre una pista de futsal, personalizar jugadores con nombre y dorsal, y diseñar jugadas estratégicas añadiendo balones, flechas y líneas de movimiento.
 
-This project was built with [Lovable](https://lovable.dev).
+Este proyecto ha sido desarrollado con [Lovable](https://lovable.dev).
 
-**Live app**: https://futsalboard.lovable.app
+**Aplicación en vivo**: https://futsalboard.lovable.app
 
-## Build with Lovable
+## Desarrollar con Lovable
 
-Continue developing this project in the [Lovable editor](https://lovable.dev/projects/2e7bd958-eaf6-5d42-b3cf-33dc5b4eb59b).
+Continúa desarrollando este proyecto en el [editor de Lovable](https://lovable.dev/projects/2e7bd958-eaf6-5d42-b3cf-33dc5b4eb59b).
 
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: every change made in Lovable is committed straight to this repository.
-- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
+- **Desarrolla más rápido**: Describe lo que quieres construir y Lovable se encarga del código.
+- **Siempre sincronizado**: Cada cambio realizado en Lovable se guarda directamente en este repositorio.
+- **Propiedad total**: El código es tuyo. Haz push a `main` en GitHub y tus cambios se sincronizarán de vuelta en Lovable, listos para tu siguiente instrucción.
 
-## Development
+## Desarrollo local
 
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
+¿Prefieres trabajar en local? Necesitarás tener instalados Node.js y npm — [instalar con nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
 
 ```sh
-git clone <this-repository-url>
-cd <repository-name>
-npm i
+git clone <url-de-este-repositorio>
+cd <nombre-del-repositorio>
+npm install
 npm run dev
-```
