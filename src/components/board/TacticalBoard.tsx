@@ -756,7 +756,7 @@ export function TacticalBoard() {
               )}
             </svg>
             </ContextMenuTrigger>
-            <ContextMenuContent className="w-52">
+            <ContextMenuContent className="w-52" container={fullscreen ? stageRef.current : null}>
               {ctxTarget?.type === "arrow" ? (
                 <>
                   <ContextMenuLabel>Tipo de flecha</ContextMenuLabel>
