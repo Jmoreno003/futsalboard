@@ -8,6 +8,7 @@ import {
   Minimize2,
   MousePointer2,
   Save,
+  Smartphone,
   MoveUpRight,
   Spline,
   Trash2,
@@ -68,6 +69,10 @@ type Drag =
 const STORAGE_KEY = "pizarra-futsal-v1";
 const SAVED_KEY = "pizarra-futsal-guardadas-v1";
 const VIEWBOX = `${-MARGIN} ${-MARGIN} ${COURT_W + MARGIN * 2} ${COURT_H + MARGIN * 2}`;
+
+/** Compact tool buttons used in fullscreen so the court keeps most of the screen. */
+const FS_TOOL_BTN =
+  "min-w-[52px] shrink-0 gap-0.5 px-1 py-1.5 text-[9px] tracking-normal [&_svg]:size-4 lg:py-2 lg:text-[10px] lg:[&_svg]:size-5";
 
 const TOOLS: { id: Tool; label: string; hint: string; icon: React.ReactNode }[] = [
   { id: "select", label: "Mover", hint: "Selecciona y arrastra", icon: <MousePointer2 /> },
@@ -167,14 +172,22 @@ export function TacticalBoard() {
   }, []);
 
   const toggleFullscreen = useCallback(async () => {
+    const orientation = (typeof screen !== "undefined" ? screen.orientation : undefined) as
+      | (ScreenOrientation & { lock?: (o: string) => Promise<void>; unlock?: () => void })
+      | undefined;
     if (fullscreen) {
       setFullscreen(false);
+      orientation?.unlock?.();
       if (document.fullscreenElement) await document.exitFullscreen().catch(() => {});
       return;
     }
     setFullscreen(true);
     // Real fullscreen where supported; otherwise the stage still fills the window.
     await stageRef.current?.requestFullscreen?.().catch(() => {});
+    // On phones/tablets, try to lay the court sideways (works on Android; iOS ignores it).
+    if (window.matchMedia("(pointer: coarse)").matches) {
+      await orientation?.lock?.("landscape")?.catch(() => {});
+    }
   }, [fullscreen]);
 
   const commit = useCallback((next: BoardState) => {
@@ -523,13 +536,18 @@ export function TacticalBoard() {
           ref={stageRef}
           className={cn(
             "flex min-w-0 flex-1 flex-col gap-4",
-            fullscreen && "fixed inset-0 z-50 gap-3 bg-background p-3",
+            fullscreen &&
+              "fixed inset-0 z-50 gap-2 bg-background p-2 pt-[max(0.5rem,env(safe-area-inset-top))] pb-[max(0.5rem,env(safe-area-inset-bottom))] pl-[max(0.5rem,env(safe-area-inset-left))] pr-[max(0.5rem,env(safe-area-inset-right))] landscape:flex-row",
           )}
         >
         {/* Toolbar */}
         <nav
           aria-label="Herramientas"
-          className="flex shrink-0 flex-wrap gap-1 rounded-xl border border-border bg-card p-1.5"
+          className={cn(
+            "flex shrink-0 flex-wrap gap-1 rounded-xl border border-border bg-card p-1.5",
+            fullscreen &&
+              "flex-nowrap overflow-x-auto p-1 landscape:grid landscape:w-[7.5rem] landscape:grid-cols-2 landscape:content-start landscape:overflow-y-auto landscape:overflow-x-hidden lg:landscape:w-40",
+          )}
         >
           {TOOLS.map((t) => (
             <button
@@ -537,8 +555,10 @@ export function TacticalBoard() {
               type="button"
               aria-pressed={tool === t.id}
               onClick={() => setTool(t.id)}
+              title={t.label}
               className={cn(
                 "flex min-w-[68px] flex-col items-center gap-1 rounded-lg px-2 py-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground [&_svg]:size-5",
+                fullscreen && FS_TOOL_BTN,
                 tool === t.id && "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground",
               )}
             >
@@ -559,7 +579,11 @@ export function TacticalBoard() {
               type="button"
               onClick={undo}
               disabled={past.length === 0}
-              className="flex min-w-[68px] flex-col items-center gap-1 rounded-lg px-2 py-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-40 [&_svg]:size-5"
+              title="Deshacer"
+              className={cn(
+                "flex min-w-[68px] flex-col items-center gap-1 rounded-lg px-2 py-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-40 [&_svg]:size-5",
+                FS_TOOL_BTN,
+              )}
             >
               <Undo2 />
               Deshacer
@@ -571,7 +595,7 @@ export function TacticalBoard() {
             onClick={toggleFullscreen}
             className={cn(
               "flex min-w-[68px] flex-col items-center gap-1 rounded-lg px-2 py-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground [&_svg]:size-5",
-              fullscreen && "ml-auto",
+              fullscreen && cn(FS_TOOL_BTN, "portrait:ml-auto"),
             )}
           >
             <Minimize2 />
@@ -581,7 +605,12 @@ export function TacticalBoard() {
         </nav>
 
         {/* Court */}
-        <div className={cn("flex min-w-0 flex-1 flex-col gap-2", fullscreen && "min-h-0")}>
+        <div className={cn("flex min-w-0 flex-1 flex-col gap-2", fullscreen && "relative min-h-0")}>
+          {fullscreen && (
+            <p className="pointer-events-none absolute inset-x-0 top-2 z-10 mx-auto hidden w-fit items-center gap-2 rounded-full border border-border bg-card/95 px-3 py-1.5 text-xs text-muted-foreground shadow-board max-sm:portrait:flex">
+              <Smartphone className="size-4 rotate-90 text-primary" /> Gira el móvil para ver el campo más grande
+            </p>
+          )}
           <div
             className={cn(
               "overflow-hidden rounded-2xl shadow-board",
@@ -808,7 +837,13 @@ export function TacticalBoard() {
           {/* Selection bar: fixed height so nothing below moves when selecting */}
           <div
             aria-live="polite"
-            className="flex min-h-[60px] shrink-0 flex-wrap items-center gap-x-5 gap-y-2 rounded-xl border border-border bg-card px-4 py-2.5"
+            className={cn(
+              "flex min-h-[60px] shrink-0 flex-wrap items-center gap-x-5 gap-y-2 rounded-xl border border-border bg-card px-4 py-2.5",
+              // Fullscreen: float over the court only while something is selected, so the court keeps all the space.
+              fullscreen &&
+                "absolute inset-x-0 bottom-1 z-10 mx-auto min-h-0 w-fit max-w-[calc(100%-1rem)] gap-x-3 gap-y-1.5 bg-card/95 px-3 py-2 shadow-board backdrop-blur",
+              fullscreen && !selection && "hidden",
+            )}
           >
             {selectedPlayer ? (
               <>
@@ -824,10 +859,10 @@ export function TacticalBoard() {
                   >
                     {selectedPlayer.number}
                   </span>
-                  <span className="font-display text-xl leading-none tracking-wide">Jugador</span>
+                  <span className={cn("font-display text-xl leading-none tracking-wide", fullscreen && "sr-only")}>Jugador</span>
                 </span>
                 <div className="flex items-center gap-2">
-                  <Label htmlFor="pname" className="text-xs text-muted-foreground">
+                  <Label htmlFor="pname" className={cn("text-xs text-muted-foreground", fullscreen && "sr-only")}>
                     Nombre
                   </Label>
                   <Input
@@ -836,7 +871,7 @@ export function TacticalBoard() {
                     value={selectedPlayer.name}
                     placeholder="Ej. Ricardinho"
                     maxLength={18}
-                    className="h-8 w-44"
+                    className={cn("h-8 w-44", fullscreen && "w-28 md:w-36")}
                     onChange={(e) => {
                       const v = e.target.value;
                       setBoard((b) => ({
@@ -848,7 +883,7 @@ export function TacticalBoard() {
                   />
                 </div>
                 <div className="flex items-center gap-2">
-                  <Label htmlFor="pnum" className="text-xs text-muted-foreground">
+                  <Label htmlFor="pnum" className={cn("text-xs text-muted-foreground", fullscreen && "sr-only")}>
                     Dorsal
                   </Label>
                   <Input
@@ -857,7 +892,7 @@ export function TacticalBoard() {
                     min={1}
                     max={99}
                     value={selectedPlayer.number}
-                    className="h-8 w-16"
+                    className={cn("h-8 w-16", fullscreen && "w-14")}
                     onChange={(e) => {
                       const n = Math.max(0, Math.min(99, Number(e.target.value) || 0));
                       setBoard((b) => ({
@@ -878,7 +913,7 @@ export function TacticalBoard() {
                       onClick={() => updatePlayer(selectedPlayer.id, { team: t })}
                     >
                       <span className={cn("size-2.5 rounded-full", t === "home" ? "bg-team-home" : "bg-team-away")} />
-                      {teamNames[t]}
+                      <span className={cn(fullscreen && "max-md:sr-only")}>{teamNames[t]}</span>
                     </Button>
                   ))}
                 </div>
@@ -888,23 +923,23 @@ export function TacticalBoard() {
                     checked={selectedPlayer.goalkeeper}
                     onCheckedChange={(v) => updatePlayer(selectedPlayer.id, { goalkeeper: v })}
                   />
-                  <Label htmlFor="pgk">Portero</Label>
+                  <Label htmlFor="pgk" className={cn(fullscreen && "text-xs")}>Portero</Label>
                 </div>
-                <div className="ml-auto flex items-center gap-1.5">
+                <div className={cn("ml-auto flex items-center gap-1.5", fullscreen && "ml-0")}>
                   <Button
                     variant="destructive"
                     size="sm"
                     className="h-8"
                     onClick={() => removeItem({ type: "player", id: selectedPlayer.id })}
                   >
-                    <Trash2 /> Quitar
+                    <Trash2 /> <span className={cn(fullscreen && "max-md:sr-only")}>Quitar</span>
                   </Button>
                   <DeselectButton onClick={() => setSelection(null)} />
                 </div>
               </>
             ) : selectedArrow ? (
               <>
-                <span className="font-display text-xl leading-none tracking-wide">Flecha</span>
+                <span className={cn("font-display text-xl leading-none tracking-wide", fullscreen && "sr-only")}>Flecha</span>
                 <div className="flex gap-1.5" role="group" aria-label="Tipo de flecha">
                   {(Object.keys(ARROW_LABEL) as ArrowKind[]).map((k) => (
                     <Button
@@ -924,8 +959,8 @@ export function TacticalBoard() {
                     </Button>
                   ))}
                 </div>
-                <p className="text-xs text-muted-foreground">Arrastra los extremos para ajustarla.</p>
-                <div className="ml-auto flex items-center gap-1.5">
+                <p className={cn("text-xs text-muted-foreground", fullscreen && "hidden")}>Arrastra los extremos para ajustarla.</p>
+                <div className={cn("ml-auto flex items-center gap-1.5", fullscreen && "ml-0")}>
                   <Button
                     variant="destructive"
                     size="sm"
@@ -940,8 +975,8 @@ export function TacticalBoard() {
             ) : selection?.type === "ball" ? (
               <>
                 <span className="font-display text-xl leading-none tracking-wide">Balón</span>
-                <p className="text-xs text-muted-foreground">Arrástralo para moverlo.</p>
-                <div className="ml-auto flex items-center gap-1.5">
+                <p className={cn("text-xs text-muted-foreground", fullscreen && "hidden")}>Arrástralo para moverlo.</p>
+                <div className={cn("ml-auto flex items-center gap-1.5", fullscreen && "ml-0")}>
                   <Button variant="destructive" size="sm" className="h-8" onClick={() => removeItem(selection)}>
                     <Trash2 /> Quitar
                   </Button>
