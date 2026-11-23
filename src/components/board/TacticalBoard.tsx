@@ -13,6 +13,7 @@ import {
   Trash2,
   Undo2,
   UserPlus,
+  X,
 } from "lucide-react";
 
 import { toast } from "sonner";
@@ -804,27 +805,38 @@ export function TacticalBoard() {
             </ContextMenuContent>
             </ContextMenu>
           </div>
-          <p className="text-xs text-muted-foreground">
-            <span className="font-semibold text-foreground">{TOOLS.find((t) => t.id === tool)?.label}:</span>{" "}
-            {activeHint}. Doble clic en un jugador para editarlo · Supr para borrar · Ctrl+Z para
-            deshacer.
-          </p>
-        </div>
-        </div>
-
-        {/* Side panel */}
-        <aside className="grid w-full shrink-0 items-start gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {selectedPlayer ? (
-            <Panel title="Jugador">
-              <div className="grid grid-cols-[1fr_80px] gap-3">
-                <div className="space-y-1.5">
-                  <Label htmlFor="pname">Nombre</Label>
+          {/* Selection bar: fixed height so nothing below moves when selecting */}
+          <div
+            aria-live="polite"
+            className="flex min-h-[60px] shrink-0 flex-wrap items-center gap-x-5 gap-y-2 rounded-xl border border-border bg-card px-4 py-2.5"
+          >
+            {selectedPlayer ? (
+              <>
+                <span className="flex items-center gap-2.5">
+                  <span
+                    className={cn(
+                      "flex size-8 items-center justify-center rounded-full font-display text-lg leading-none",
+                      selectedPlayer.team === "home"
+                        ? "bg-team-home text-team-home-foreground"
+                        : "bg-team-away text-team-away-foreground",
+                      selectedPlayer.goalkeeper && "ring-2 ring-goalkeeper",
+                    )}
+                  >
+                    {selectedPlayer.number}
+                  </span>
+                  <span className="font-display text-xl leading-none tracking-wide">Jugador</span>
+                </span>
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="pname" className="text-xs text-muted-foreground">
+                    Nombre
+                  </Label>
                   <Input
                     id="pname"
                     ref={nameInputRef}
                     value={selectedPlayer.name}
                     placeholder="Ej. Ricardinho"
                     maxLength={18}
+                    className="h-8 w-44"
                     onChange={(e) => {
                       const v = e.target.value;
                       setBoard((b) => ({
@@ -835,14 +847,17 @@ export function TacticalBoard() {
                     onFocus={() => setPast((p) => [...p.slice(-49), boardRef.current])}
                   />
                 </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="pnum">Dorsal</Label>
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="pnum" className="text-xs text-muted-foreground">
+                    Dorsal
+                  </Label>
                   <Input
                     id="pnum"
                     type="number"
                     min={1}
                     max={99}
                     value={selectedPlayer.number}
+                    className="h-8 w-16"
                     onChange={(e) => {
                       const n = Math.max(0, Math.min(99, Number(e.target.value) || 0));
                       setBoard((b) => ({
@@ -853,149 +868,100 @@ export function TacticalBoard() {
                     onFocus={() => setPast((p) => [...p.slice(-49), boardRef.current])}
                   />
                 </div>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                {(["home", "away"] as const).map((t) => (
-                  <Button
-                    key={t}
-                    size="sm"
-                    variant={selectedPlayer.team === t ? "default" : "secondary"}
-                    onClick={() => updatePlayer(selectedPlayer.id, { team: t })}
-                  >
-                    <span className={cn("size-2.5 rounded-full", t === "home" ? "bg-team-home" : "bg-team-away")} />
-                    {teamNames[t]}
-                  </Button>
-                ))}
-              </div>
-              <div className="flex items-center justify-between">
-                <Label htmlFor="pgk">Portero</Label>
-                <Switch
-                  id="pgk"
-                  checked={selectedPlayer.goalkeeper}
-                  onCheckedChange={(v) => updatePlayer(selectedPlayer.id, { goalkeeper: v })}
-                />
-              </div>
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => removeItem({ type: "player", id: selectedPlayer.id })}
-              >
-                <Trash2 /> Quitar jugador
-              </Button>
-            </Panel>
-          ) : selectedArrow ? (
-            <Panel title="Flecha">
-              <div className="grid grid-cols-3 gap-2">
-                {(Object.keys(ARROW_LABEL) as ArrowKind[]).map((k) => (
-                  <Button
-                    key={k}
-                    size="sm"
-                    variant={selectedArrow.kind === k ? "default" : "secondary"}
-                    onClick={() => {
-                      const b = boardRef.current;
-                      commit({
-                        ...b,
-                        arrows: b.arrows.map((a) => (a.id === selectedArrow.id ? { ...a, kind: k } : a)),
-                      });
-                    }}
-                  >
-                    {ARROW_LABEL[k]}
-                  </Button>
-                ))}
-              </div>
-              <p className="text-xs text-muted-foreground">Arrastra los extremos para ajustarla.</p>
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => removeItem({ type: "arrow", id: selectedArrow.id })}
-              >
-                <Trash2 /> Quitar flecha
-              </Button>
-            </Panel>
-          ) : selection?.type === "ball" ? (
-            <Panel title="Balón">
-              <Button variant="destructive" size="sm" onClick={() => removeItem(selection)}>
-                <Trash2 /> Quitar balón
-              </Button>
-            </Panel>
-          ) : null}
-
-          <Panel title="Mis alineaciones">
-            <form
-              className="flex gap-2"
-              onSubmit={(e) => {
-                e.preventDefault();
-                saveCurrent();
-              }}
-            >
-              <Input
-                aria-label="Nombre de la alineación"
-                value={lineupName}
-                onChange={(e) => setLineupName(e.target.value)}
-                placeholder={`Alineación ${saved.length + 1}`}
-                maxLength={40}
-                className="h-8"
-              />
-              <Button type="submit" size="sm">
-                <Save /> Guardar
-              </Button>
-            </form>
-            {saved.length === 0 ? (
-              <p className="text-xs text-muted-foreground">
-                Ponle un nombre y guárdala. Si usas un nombre que ya existe, se actualiza.
-              </p>
-            ) : (
-              <ul className="flex max-h-60 flex-col gap-0.5 overflow-y-auto">
-                {saved.map((l) => (
-                  <li
-                    key={l.id}
-                    className={cn(
-                      "group flex items-center gap-1 rounded-md pl-2 hover:bg-accent",
-                      l.name === lineupName.trim() && "bg-accent",
-                    )}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => loadLineup(l)}
-                      className="flex min-w-0 flex-1 flex-col py-1.5 text-left"
-                      title="Cargar en la pizarra"
-                    >
-                      <span className="truncate text-sm font-medium">{l.name}</span>
-                      <span className="text-[11px] text-muted-foreground">
-                        {l.board.players.length} jugadores · {l.board.arrows.length} flechas ·{" "}
-                        {new Date(l.savedAt).toLocaleDateString("es-ES", {
-                          day: "numeric",
-                          month: "short",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </span>
-                    </button>
+                <div className="flex gap-1.5" role="group" aria-label="Equipo">
+                  {(["home", "away"] as const).map((t) => (
                     <Button
+                      key={t}
                       size="sm"
-                      variant="secondary"
-                      className="h-8 px-2.5"
-                      aria-label={`Usar ${l.name} en el campo`}
-                      title="Poner esta alineación en el campo"
-                      onClick={() => loadLineup(l)}
+                      className="h-8"
+                      variant={selectedPlayer.team === t ? "default" : "secondary"}
+                      onClick={() => updatePlayer(selectedPlayer.id, { team: t })}
                     >
-                      <Play />
-                      Usar
+                      <span className={cn("size-2.5 rounded-full", t === "home" ? "bg-team-home" : "bg-team-away")} />
+                      {teamNames[t]}
                     </Button>
+                  ))}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Switch
+                    id="pgk"
+                    checked={selectedPlayer.goalkeeper}
+                    onCheckedChange={(v) => updatePlayer(selectedPlayer.id, { goalkeeper: v })}
+                  />
+                  <Label htmlFor="pgk">Portero</Label>
+                </div>
+                <div className="ml-auto flex items-center gap-1.5">
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="h-8"
+                    onClick={() => removeItem({ type: "player", id: selectedPlayer.id })}
+                  >
+                    <Trash2 /> Quitar
+                  </Button>
+                  <DeselectButton onClick={() => setSelection(null)} />
+                </div>
+              </>
+            ) : selectedArrow ? (
+              <>
+                <span className="font-display text-xl leading-none tracking-wide">Flecha</span>
+                <div className="flex gap-1.5" role="group" aria-label="Tipo de flecha">
+                  {(Object.keys(ARROW_LABEL) as ArrowKind[]).map((k) => (
                     <Button
-                      size="icon"
-                      variant="ghost"
-                      className="size-8 text-muted-foreground hover:text-destructive"
-                      aria-label={`Borrar ${l.name}`}
-                      onClick={() => deleteLineup(l)}
+                      key={k}
+                      size="sm"
+                      className="h-8"
+                      variant={selectedArrow.kind === k ? "default" : "secondary"}
+                      onClick={() => {
+                        const b = boardRef.current;
+                        commit({
+                          ...b,
+                          arrows: b.arrows.map((a) => (a.id === selectedArrow.id ? { ...a, kind: k } : a)),
+                        });
+                      }}
                     >
-                      <Trash2 />
+                      {ARROW_LABEL[k]}
                     </Button>
-                  </li>
-                ))}
-              </ul>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">Arrastra los extremos para ajustarla.</p>
+                <div className="ml-auto flex items-center gap-1.5">
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="h-8"
+                    onClick={() => removeItem({ type: "arrow", id: selectedArrow.id })}
+                  >
+                    <Trash2 /> Quitar
+                  </Button>
+                  <DeselectButton onClick={() => setSelection(null)} />
+                </div>
+              </>
+            ) : selection?.type === "ball" ? (
+              <>
+                <span className="font-display text-xl leading-none tracking-wide">Balón</span>
+                <p className="text-xs text-muted-foreground">Arrástralo para moverlo.</p>
+                <div className="ml-auto flex items-center gap-1.5">
+                  <Button variant="destructive" size="sm" className="h-8" onClick={() => removeItem(selection)}>
+                    <Trash2 /> Quitar
+                  </Button>
+                  <DeselectButton onClick={() => setSelection(null)} />
+                </div>
+              </>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                <span className="font-semibold text-foreground">{TOOLS.find((t) => t.id === tool)?.label}:</span>{" "}
+                {activeHint}. Selecciona un jugador, balón o flecha para editarlo aquí · Supr para borrar ·
+                Ctrl+Z para deshacer.
+              </p>
             )}
-          </Panel>
+          </div>
+        </div>
+        </div>
+
+        {/* Panels below the court: fixed three columns */}
+        <aside className="grid w-full shrink-0 items-start gap-4 md:grid-cols-3">
+
 
           {(["home", "away"] as const).map((team) => {
             const players = board.players
@@ -1085,9 +1051,101 @@ export function TacticalBoard() {
               </Panel>
             );
           })}
+
+          <Panel title="Mis alineaciones">
+            <form
+              className="flex gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                saveCurrent();
+              }}
+            >
+              <Input
+                aria-label="Nombre de la alineación"
+                value={lineupName}
+                onChange={(e) => setLineupName(e.target.value)}
+                placeholder={`Alineación ${saved.length + 1}`}
+                maxLength={40}
+                className="h-8"
+              />
+              <Button type="submit" size="sm">
+                <Save /> Guardar
+              </Button>
+            </form>
+            {saved.length === 0 ? (
+              <p className="text-xs text-muted-foreground">
+                Ponle un nombre y guárdala. Si usas un nombre que ya existe, se actualiza.
+              </p>
+            ) : (
+              <ul className="flex max-h-60 flex-col gap-0.5 overflow-y-auto">
+                {saved.map((l) => (
+                  <li
+                    key={l.id}
+                    className={cn(
+                      "group flex items-center gap-1 rounded-md pl-2 hover:bg-accent",
+                      l.name === lineupName.trim() && "bg-accent",
+                    )}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => loadLineup(l)}
+                      className="flex min-w-0 flex-1 flex-col py-1.5 text-left"
+                      title="Cargar en la pizarra"
+                    >
+                      <span className="truncate text-sm font-medium">{l.name}</span>
+                      <span className="text-[11px] text-muted-foreground">
+                        {l.board.players.length} jugadores · {l.board.arrows.length} flechas ·{" "}
+                        {new Date(l.savedAt).toLocaleDateString("es-ES", {
+                          day: "numeric",
+                          month: "short",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                    </button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="h-8 px-2.5"
+                      aria-label={`Usar ${l.name} en el campo`}
+                      title="Poner esta alineación en el campo"
+                      onClick={() => loadLineup(l)}
+                    >
+                      <Play />
+                      Usar
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="size-8 text-muted-foreground hover:text-destructive"
+                      aria-label={`Borrar ${l.name}`}
+                      onClick={() => deleteLineup(l)}
+                    >
+                      <Trash2 />
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Panel>
         </aside>
       </div>
     </div>
+  );
+}
+
+function DeselectButton({ onClick }: { onClick: () => void }) {
+  return (
+    <Button
+      size="icon"
+      variant="ghost"
+      className="size-8 text-muted-foreground"
+      aria-label="Quitar selección"
+      title="Quitar selección"
+      onClick={onClick}
+    >
+      <X />
+    </Button>
   );
 }
 
