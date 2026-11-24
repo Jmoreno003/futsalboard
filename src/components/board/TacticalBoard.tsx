@@ -70,9 +70,29 @@ const STORAGE_KEY = "pizarra-futsal-v1";
 const SAVED_KEY = "pizarra-futsal-guardadas-v1";
 const VIEWBOX = `${-MARGIN} ${-MARGIN} ${COURT_W + MARGIN * 2} ${COURT_H + MARGIN * 2}`;
 
-/** Compact tool buttons used in fullscreen so the court keeps most of the screen. */
-const FS_TOOL_BTN =
-  "min-w-[52px] shrink-0 gap-0.5 px-1 py-1.5 text-[9px] tracking-normal [&_svg]:size-4 lg:py-2 lg:text-[10px] lg:[&_svg]:size-5";
+/** Court viewBox size, used to size the court in fullscreen without stretching it. */
+const VB_W = COURT_W + MARGIN * 2;
+const VB_H = COURT_H + MARGIN * 2;
+
+const TOOL_BTN =
+  "flex items-center rounded-lg font-semibold uppercase text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-40";
+const TOOL_BTN_NORMAL = "min-w-[68px] flex-col gap-1 px-2 py-2 text-[11px] tracking-wider [&_svg]:size-5";
+/**
+ * Fullscreen tool buttons. `compact` = phones (small, two columns when sideways);
+ * `tall` = tablets and computers (bigger, and a clear list with names when sideways).
+ */
+const TOOL_BTN_FS = [
+  "min-w-[52px] shrink-0 flex-col gap-0.5 px-1 py-1.5 text-[9px] tracking-normal [&_svg]:size-4",
+  "tall:portrait:min-w-[68px] tall:portrait:gap-1 tall:portrait:px-1.5 tall:portrait:py-2.5 tall:portrait:text-[11px] tall:portrait:[&_svg]:size-6",
+  "tall:landscape:w-full tall:landscape:flex-row tall:landscape:gap-3 tall:landscape:px-3 tall:landscape:py-2.5 tall:landscape:text-sm tall:landscape:normal-case tall:landscape:[&_svg]:size-5",
+].join(" ");
+const FS_RAIL = [
+  "flex-nowrap overflow-x-auto p-1",
+  "compact:landscape:grid compact:landscape:w-[7.5rem] compact:landscape:grid-cols-2 compact:landscape:content-start compact:landscape:overflow-y-auto compact:landscape:overflow-x-hidden",
+  "tall:portrait:flex-wrap tall:portrait:justify-center tall:portrait:p-1.5",
+  "tall:landscape:w-48 tall:landscape:flex-col tall:landscape:gap-0.5 tall:landscape:overflow-y-auto tall:landscape:overflow-x-hidden tall:landscape:rounded-2xl tall:landscape:p-3",
+].join(" ");
+const TOOL_ACTIVE = "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground";
 
 const TOOLS: { id: Tool; label: string; hint: string; icon: React.ReactNode }[] = [
   { id: "select", label: "Mover", hint: "Selecciona y arrastra", icon: <MousePointer2 /> },
@@ -83,6 +103,13 @@ const TOOLS: { id: Tool; label: string; hint: string; icon: React.ReactNode }[] 
   { id: "run", label: "Desmarque", hint: "Arrastra para dibujar", icon: <MoveUpRight /> },
   { id: "dribble", label: "Conducción", hint: "Arrastra para dibujar", icon: <Spline /> },
   { id: "erase", label: "Borrar", hint: "Clic sobre un elemento", icon: <Eraser /> },
+];
+
+const TOOL_GROUPS: { label?: string; tools: Tool[] }[] = [
+  { tools: ["select"] },
+  { label: "Añadir", tools: ["home", "away", "ball"] },
+  { label: "Flechas", tools: ["pass", "run", "dribble"] },
+  { tools: ["erase"] },
 ];
 
 const ARROW_LABEL: Record<ArrowKind, string> = {
@@ -131,6 +158,8 @@ export function TacticalBoard() {
   boardRef.current = board;
   const dragRef = useRef<Drag | null>(null);
   const snapshotRef = useRef<BoardState | null>(null);
+  // Touch taps that add pieces wait for the finger to lift, so a swipe can scroll the page instead.
+  const pendingAddRef = useRef<{ pointerId: number; x: number; y: number } | null>(null);
 
   // Load saved board after hydration.
   useEffect(() => {
@@ -310,26 +339,30 @@ export function TacticalBoard() {
 
   const isArrowTool = tool === "pass" || tool === "run" || tool === "dribble";
 
+  const addAt = (what: "home" | "away" | "ball", x: number, y: number) => {
+    const b = boardRef.current;
+    const id = uid();
+    if (what === "ball") {
+      commit({ ...b, balls: [...b.balls, { id, x, y }] });
+      setSelection({ type: "ball", id });
+      return;
+    }
+    commit({
+      ...b,
+      players: [...b.players, { id, team: what, x, y, number: nextNumber(b.players, what), name: "", goalkeeper: false }],
+    });
+    setSelection({ type: "player", id });
+  };
+
   // Background (court) pointer down
   const onBoardPointerDown = (e: ReactPointerEvent<SVGSVGElement>) => {
     if (e.button !== 0) return;
     const raw = toSvg(e);
     const { x, y } = clampToBoard(raw.x, raw.y);
     const b = boardRef.current;
-    if (tool === "home" || tool === "away") {
-      const id = uid();
-      commit({
-        ...b,
-        players: [
-          ...b.players,
-          { id, team: tool, x, y, number: nextNumber(b.players, tool), name: "", goalkeeper: false },
-        ],
-      });
-      setSelection({ type: "player", id });
-    } else if (tool === "ball") {
-      const id = uid();
-      commit({ ...b, balls: [...b.balls, { id, x, y }] });
-      setSelection({ type: "ball", id });
+    if (tool === "home" || tool === "away" || tool === "ball") {
+      if (e.pointerType === "touch") pendingAddRef.current = { pointerId: e.pointerId, x, y };
+      else addAt(tool, x, y);
     } else if (isArrowTool) {
       const id = uid();
       startDrag(e, { kind: "draw-arrow", id });
@@ -407,7 +440,17 @@ export function TacticalBoard() {
     }
   };
 
-  const onPointerUp = () => {
+  const onPointerCancel = () => {
+    pendingAddRef.current = null;
+    onPointerUp();
+  };
+
+  const onPointerUp = (e?: ReactPointerEvent<SVGSVGElement>) => {
+    const pending = pendingAddRef.current;
+    pendingAddRef.current = null;
+    if (pending && e && pending.pointerId === e.pointerId && (tool === "home" || tool === "away" || tool === "ball")) {
+      addAt(tool, pending.x, pending.y);
+    }
     const drag = dragRef.current;
     const snap = snapshotRef.current;
     dragRef.current = null;
@@ -537,7 +580,7 @@ export function TacticalBoard() {
           className={cn(
             "flex min-w-0 flex-1 flex-col gap-4",
             fullscreen &&
-              "fixed inset-0 z-50 gap-2 bg-background p-2 pt-[max(0.5rem,env(safe-area-inset-top))] pb-[max(0.5rem,env(safe-area-inset-bottom))] pl-[max(0.5rem,env(safe-area-inset-left))] pr-[max(0.5rem,env(safe-area-inset-right))] landscape:flex-row",
+              "fixed inset-0 z-50 gap-2 bg-background p-2 pt-[max(0.5rem,env(safe-area-inset-top))] pb-[max(0.5rem,env(safe-area-inset-bottom))] pl-[max(0.5rem,env(safe-area-inset-left))] pr-[max(0.5rem,env(safe-area-inset-right))] [background-image:var(--gradient-shell)] landscape:flex-row tall:gap-4 tall:p-4",
           )}
         >
         {/* Toolbar */}
@@ -545,62 +588,89 @@ export function TacticalBoard() {
           aria-label="Herramientas"
           className={cn(
             "flex shrink-0 flex-wrap gap-1 rounded-xl border border-border bg-card p-1.5",
-            fullscreen &&
-              "flex-nowrap overflow-x-auto p-1 landscape:grid landscape:w-[7.5rem] landscape:grid-cols-2 landscape:content-start landscape:overflow-y-auto landscape:overflow-x-hidden lg:landscape:w-40",
+            fullscreen && FS_RAIL,
           )}
         >
-          {TOOLS.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              aria-pressed={tool === t.id}
-              onClick={() => setTool(t.id)}
-              title={t.label}
+          {fullscreen && (
+            <div className="hidden px-3 pb-2 pt-1 tall:landscape:block">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-primary">Pizarra táctica</p>
+              <p className="font-display text-3xl leading-none tracking-wide">Futsal</p>
+            </div>
+          )}
+          {TOOL_GROUPS.map((g, i) => (
+            <div
+              key={g.label ?? `g${i}`}
               className={cn(
-                "flex min-w-[68px] flex-col items-center gap-1 rounded-lg px-2 py-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground [&_svg]:size-5",
-                fullscreen && FS_TOOL_BTN,
-                tool === t.id && "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground",
+                "contents",
+                fullscreen && "tall:landscape:flex tall:landscape:flex-col tall:landscape:gap-0.5",
+                fullscreen && !g.label && i > 0 && "tall:landscape:mt-2 tall:landscape:border-t tall:landscape:pt-2",
               )}
             >
-              <span
-                className={cn(
-                  "flex items-center justify-center",
-                  t.id === "home" && tool !== t.id && "text-team-home",
-                  t.id === "away" && tool !== t.id && "text-team-away",
-                )}
-              >
-                {t.icon}
-              </span>
-              {t.label}
-            </button>
+              {fullscreen && g.label && (
+                <p className="hidden px-3 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-[0.25em] text-muted-foreground tall:landscape:block">
+                  {g.label}
+                </p>
+              )}
+              {TOOLS.filter((t) => g.tools.includes(t.id)).map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  aria-pressed={tool === t.id}
+                  onClick={() => setTool(t.id)}
+                  title={t.label}
+                  className={cn(TOOL_BTN, fullscreen ? TOOL_BTN_FS : TOOL_BTN_NORMAL, tool === t.id && TOOL_ACTIVE)}
+                >
+                  <span
+                    className={cn(
+                      "flex items-center justify-center",
+                      t.id === "home" && tool !== t.id && "text-team-home",
+                      t.id === "away" && tool !== t.id && "text-team-away",
+                    )}
+                  >
+                    {t.icon}
+                  </span>
+                  {t.label}
+                </button>
+              ))}
+            </div>
           ))}
           {fullscreen && (
-            <button
-              type="button"
-              onClick={undo}
-              disabled={past.length === 0}
-              title="Deshacer"
-              className={cn(
-                "flex min-w-[68px] flex-col items-center gap-1 rounded-lg px-2 py-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-40 [&_svg]:size-5",
-                FS_TOOL_BTN,
+            <div className="contents tall:landscape:mt-auto tall:landscape:flex tall:landscape:flex-col tall:landscape:gap-0.5 tall:landscape:border-t tall:landscape:pt-2">
+              {activeHint && (
+                <p className="hidden px-3 pb-2 text-xs leading-snug text-muted-foreground tall:landscape:block">
+                  <span className="font-semibold text-foreground">{TOOLS.find((t) => t.id === tool)?.label}:</span>{" "}
+                  {activeHint}
+                </p>
               )}
-            >
-              <Undo2 />
-              Deshacer
-            </button>
-          )}
-          {fullscreen && (
-          <button
-            type="button"
-            onClick={toggleFullscreen}
-            className={cn(
-              "flex min-w-[68px] flex-col items-center gap-1 rounded-lg px-2 py-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground [&_svg]:size-5",
-              fullscreen && cn(FS_TOOL_BTN, "portrait:ml-auto"),
-            )}
-          >
-            <Minimize2 />
-            Salir
-          </button>
+              <button
+                type="button"
+                onClick={undo}
+                disabled={past.length === 0}
+                title="Deshacer"
+                className={cn(TOOL_BTN, TOOL_BTN_FS)}
+              >
+                <Undo2 />
+                Deshacer
+              </button>
+              <button
+                type="button"
+                onClick={exportPng}
+                title="Descargar imagen"
+                className={cn(TOOL_BTN, TOOL_BTN_FS, "compact:hidden tall:portrait:hidden")}
+              >
+                <Download />
+                Imagen
+              </button>
+              <button
+                type="button"
+                onClick={toggleFullscreen}
+                title="Salir de pantalla completa"
+                className={cn(TOOL_BTN, TOOL_BTN_FS, "portrait:ml-auto")}
+              >
+                <Minimize2 />
+                Salir
+              </button>
+            </div>
           )}
         </nav>
 
@@ -614,7 +684,8 @@ export function TacticalBoard() {
           <div
             className={cn(
               "overflow-hidden rounded-2xl shadow-board",
-              fullscreen && "flex min-h-0 flex-1 items-center justify-center rounded-none shadow-none",
+              fullscreen &&
+                "flex min-h-0 flex-1 items-center justify-center overflow-visible rounded-none shadow-none [container-type:size]",
             )}
           >
             <ContextMenu>
@@ -624,14 +695,21 @@ export function TacticalBoard() {
               onContextMenu={onBoardContextMenu}
               viewBox={VIEWBOX}
               className={cn(
-                "block h-auto w-full touch-none select-none",
-                fullscreen && "h-full max-h-full",
+                "block h-auto w-full select-none",
+                // Outside fullscreen a swipe on empty court scrolls the page; pieces still drag.
+                fullscreen || isArrowTool ? "touch-none" : "touch-pan-y",
+                fullscreen && "rounded-xl shadow-board tall:rounded-2xl",
                 tool === "select" ? "cursor-default" : tool === "erase" ? "cursor-not-allowed" : "cursor-crosshair",
               )}
               onPointerDown={onBoardPointerDown}
               onPointerMove={onPointerMove}
+              style={
+                fullscreen
+                  ? { width: `min(100cqw, calc(100cqh * ${VB_W} / ${VB_H}))`, aspectRatio: `${VB_W} / ${VB_H}` }
+                  : undefined
+              }
               onPointerUp={onPointerUp}
-              onPointerCancel={onPointerUp}
+              onPointerCancel={onPointerCancel}
               role="application"
               aria-label="Campo de futsal"
             >
@@ -681,7 +759,7 @@ export function TacticalBoard() {
                       d={`M${a.x1},${a.y1} L${a.x2},${a.y2}`}
                       className="fill-none stroke-transparent"
                       strokeWidth={12}
-                      style={{ cursor: tool === "select" ? "move" : undefined }}
+                      style={{ cursor: tool === "select" ? "move" : undefined, touchAction: "none" }}
                       data-item-type="arrow"
                       data-item-id={a.id}
                       onPointerDown={(e) => onItemPointerDown(e, "arrow", a.id)}
@@ -698,7 +776,7 @@ export function TacticalBoard() {
                   <g
                     key={p.id}
                     transform={`translate(${p.x} ${p.y})`}
-                    style={{ cursor: tool === "select" ? "grab" : undefined }}
+                    style={{ cursor: tool === "select" ? "grab" : undefined, touchAction: "none" }}
                     data-item-type="player"
                     data-item-id={p.id}
                     onPointerDown={(e) => onItemPointerDown(e, "player", p.id)}
@@ -752,7 +830,7 @@ export function TacticalBoard() {
                   <g
                     key={b.id}
                     transform={`translate(${b.x} ${b.y})`}
-                    style={{ cursor: tool === "select" ? "grab" : undefined }}
+                    style={{ cursor: tool === "select" ? "grab" : undefined, touchAction: "none" }}
                     data-item-type="ball"
                     data-item-id={b.id}
                     onPointerDown={(e) => onItemPointerDown(e, "ball", b.id)}
@@ -777,7 +855,7 @@ export function TacticalBoard() {
                       r={4}
                       className="fill-primary stroke-primary-foreground"
                       strokeWidth={1}
-                      style={{ cursor: "pointer" }}
+                      style={{ cursor: "pointer", touchAction: "none" }}
                       onPointerDown={(e) => onHandlePointerDown(e, selectedArrow.id, end)}
                     />
                   ))}
@@ -841,7 +919,7 @@ export function TacticalBoard() {
               "flex min-h-[60px] shrink-0 flex-wrap items-center gap-x-5 gap-y-2 rounded-xl border border-border bg-card px-4 py-2.5",
               // Fullscreen: float over the court only while something is selected, so the court keeps all the space.
               fullscreen &&
-                "absolute inset-x-0 bottom-1 z-10 mx-auto min-h-0 w-fit max-w-[calc(100%-1rem)] gap-x-3 gap-y-1.5 bg-card/95 px-3 py-2 shadow-board backdrop-blur",
+                "absolute inset-x-0 bottom-1 z-10 tall:bottom-4 mx-auto min-h-0 w-fit max-w-[calc(100%-1rem)] gap-x-3 gap-y-1.5 bg-card/95 px-3 py-2 shadow-board backdrop-blur",
               fullscreen && !selection && "hidden",
             )}
           >
@@ -1018,12 +1096,12 @@ export function TacticalBoard() {
                   </span>
                 }
               >
-                <div className="flex gap-2">
+                <div className="grid grid-cols-2 gap-2 xl:grid-cols-[minmax(0,1fr)_auto_auto]">
                   <select
                     aria-label="Formación"
                     value={formation[team]}
                     onChange={(e) => setFormation((f) => ({ ...f, [team]: e.target.value }))}
-                    className="h-8 flex-1 rounded-md border border-input bg-background px-2 text-sm"
+                    className="col-span-2 h-8 min-w-0 rounded-md border border-input bg-background px-2 text-sm xl:col-span-1"
                   >
                     {FORMATIONS.map((f) => (
                       <option key={f.id} value={f.id}>
@@ -1036,8 +1114,8 @@ export function TacticalBoard() {
                   </Button>
                   <Button
                     size="sm"
-                    variant="ghost"
-                    className="text-muted-foreground hover:text-destructive"
+                    variant="outline"
+                    className="text-muted-foreground hover:border-destructive/60 hover:text-destructive"
                     aria-label={`Eliminar equipo ${teamNames[team]}`}
                     onClick={() => clearTeam(team)}
                   >
